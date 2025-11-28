@@ -6,11 +6,42 @@ declare_id!("5AFgFmdQthc3DZKmygrsGZkNnCN9JYMefADiAvNXpYCg");
 pub mod solidkyc {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        msg!("Greetings from: {:?}", ctx.program_id);
+    pub fn initialize_program_config(ctx: Context<InitializeProgramConfig>) -> Result<()> {
+        let config = &mut ctx.accounts.config;
+
+        config.admin = ctx.accounts.admin.key();
+        config.version = 1;
+        config.bump = ctx.bumps.config;
+
+        msg!("SolidKYC initialized with admin: {}", config.admin);
         Ok(())
     }
 }
 
 #[derive(Accounts)]
-pub struct Initialize {}
+pub struct InitializeProgramConfig<'info> {
+    #[account(
+        init,
+        payer = admin,
+        space = ProgramConfig::SIZE,
+        seeds = [b"config"],
+        bump
+    )]
+    pub config: Account<'info, ProgramConfig>,
+
+    #[account(mut)]
+    pub admin: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+pub struct ProgramConfig {
+    pub admin: Pubkey,
+    pub version: u8,
+    pub bump: u8,
+}
+
+impl ProgramConfig {
+    pub const SIZE: usize = 8 + 32 + 1 + 1; // 8(discriminator) + 34 = 42 bytes total
+}
