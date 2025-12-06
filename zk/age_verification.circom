@@ -2,28 +2,54 @@ pragma circom 2.0.0;
 
 include "node_modules/circomlib/circuits/poseidon.circom";
 include "node_modules/circomlib/circuits/eddsaposeidon.circom";
+include "node_modules/circomlib/circuits/comparators.circom";
 
+/*
+ * AgeVerification Circuit - Enhanced Version
+ * 
+ * Public Inputs (verifier can see):
+ * - currentTime: When proof was generated (prevents replay)
+ * - expiresAt: When credential expires (transparent expiry)
+ * - issuerPublicKeyX: Issuer's public key X (verifier can check on Solana)
+ * - issuerPublicKeyY: Issuer's public key Y (verifier can check on Solana)
+ *
+ * Private Inputs (hidden in zero-knowledge):
+ * - dateOfBirth: User's actual birth date
+ * - credential_hash: Hash of credential
+ * - signature: Issuer's signature
+ */
 template AgeVerification() {
-    // Inputs
-    signal input verificationCredentials;     // Credentials from IndexedDB
-    signal input credential_hash;             // Hash of verificationCredentials from Solana
-    signal input dateOfBirth;                 // Unix timestamp of birth date
-    signal input currentTime;                 // Current Unix timestamp
-    signal input issuerPublicKeyX;            // Issuer's public key X coordinate
-    signal input issuerPublicKeyY;            // Issuer's public key Y coordinate
-    signal input signatureR8x;                // EdDSA signature R8 point X coordinate
-    signal input signatureR8y;                // EdDSA signature R8 point Y coordinate
-    signal input signatureS;                  // EdDSA signature S value
+    // PRIVATE INPUTS
     
-    // Output
+    signal input dateOfBirth;                 // Unix timestamp (PRIVATE)
+    signal input credential_hash;             // Poseidon hash from Solana (PRIVATE)
+    
+    // Issuer's EdDSA signature (PRIVATE)
+    signal input signatureR8x;
+    signal input signatureR8y;
+    signal input signatureS;
+    
+    // PUBLIC INPUTS
+    
+    signal input currentTime;                 // Current timestamp (PUBLIC)
+    signal input expiresAt;                   // Expiry timestamp (PUBLIC)
+    
+    // Issuer's Baby JubJub public key (PUBLIC)
+    signal input issuerPublicKeyX;            
+    signal input issuerPublicKeyY;
+    
+    // OUTPUT
+
     signal output isValid;
-
-    // Step 1: Verify the credential hash matches
-    component poseidon = Poseidon(1);
-    poseidon.inputs[0] <== verificationCredentials;
-    poseidon.out === credential_hash;
-
-    // Step 2: Verify EdDSA signature on the credential hash
+    
+    // STEP 1: VERIFY CREDENTIAL HASH
+    
+    component credentialHasher = Poseidon(1);
+    credentialHasher.inputs[0] <== dateOfBirth;
+    credentialHasher.out === credential_hash;
+    
+    // STEP 2: VERIFY ISSUER'S EDDSA SIGNATURE
+    
     component signatureVerifier = EdDSAPoseidonVerifier();
     signatureVerifier.enabled <== 1;
     signatureVerifier.Ax <== issuerPublicKeyX;
@@ -32,21 +58,37 @@ template AgeVerification() {
     signatureVerifier.R8y <== signatureR8y;
     signatureVerifier.S <== signatureS;
     signatureVerifier.M <== credential_hash;
-
-    // Step 3: Age Verification (check if age >= 18)
+    
+    // STEP 3: VERIFY CURRENT TIME > DATE OF BIRTH
+    
+    component timeCheck = GreaterThan(64);
+    timeCheck.in[0] <== currentTime;
+    timeCheck.in[1] <== dateOfBirth;
+    
+    // This constraint will fail if currentTime <= dateOfBirth
+    timeCheck.out === 1;
+    
+    // STEP 4: VERIFY AGE >= 18 YEARS
+    
     signal ageInSeconds;
     ageInSeconds <== currentTime - dateOfBirth;
     
-    signal eighteenYearsInSeconds;
-    eighteenYearsInSeconds <== 18 * 365 * 24 * 60 * 60;
+    // 18 years in seconds: 18 * 365 * 24 * 60 * 60 = 567,648,000
+    component ageComparator = GreaterEqThan(64);
+    ageComparator.in[0] <== ageInSeconds;
+    ageComparator.in[1] <== 567648000;
     
-    component isAdult = GreaterEqThan(64);
-    isAdult.in[0] <== ageInSeconds;
-    isAdult.in[1] <== eighteenYearsInSeconds;
+    // STEP 5: VERIFY CREDENTIAL NOT EXPIRED
+    
+    component expiryComparator = LessThan(64);
+    expiryComparator.in[0] <== currentTime;
+    expiryComparator.in[1] <== expiresAt;
+    
+    // STEP 6: COMBINE ALL CHECKS (AND LOGIC)
 
-
-    // Output is valid only if age check passes
-    isValid <== isAdult.out;
+    // Both age check AND expiry check must pass
+    isValid <== ageComparator.out * expiryComparator.out;
 }
 
-component main {public [currentTime]} = AgeVerification();
+// Declare public inputs
+component main {public [currentTime, expiresAt, issuerPublicKeyX, issuerPublicKeyY]} = AgeVerification();
