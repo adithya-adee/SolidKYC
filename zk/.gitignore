@@ -1,0 +1,25 @@
+# Build artifacts (can be regenerated)
+build/
+*.r1cs
+*.sym
+*.wasm
+witness.wtns
+
+# Ceremony files (very large, can be downloaded)
+*.ptau
+*.zkey
+
+# Test/example data (sensitive or temporary)
+input.json
+test_reference.json
+proof.json
+public.json
+
+## Extra
+generate_test_input.js
+EdDSA_SIGNATURE_GUIDE.md
+example_signature.js
+
+# Dependencies
+node_modules/
+pnpm-lock.yaml
