@@ -12,17 +12,16 @@ include "node_modules/circomlib/circuits/comparators.circom";
  * - expiresAt: When credential expires (transparent expiry)
  * - issuerPublicKeyX: Issuer's public key X (verifier can check on Solana)
  * - issuerPublicKeyY: Issuer's public key Y (verifier can check on Solana)
+ * - credential_hash: Hash of credential
  *
  * Private Inputs (hidden in zero-knowledge):
  * - dateOfBirth: User's actual birth date
- * - credential_hash: Hash of credential
  * - signature: Issuer's signature
  */
 template AgeVerification() {
     // PRIVATE INPUTS
     
     signal input dateOfBirth;                 // Unix timestamp (PRIVATE)
-    signal input credential_hash;             // Poseidon hash from Solana (PRIVATE)
     
     // Issuer's EdDSA signature (PRIVATE)
     signal input signatureR8x;
@@ -33,7 +32,8 @@ template AgeVerification() {
     
     signal input currentTime;                 // Current timestamp (PUBLIC)
     signal input expiresAt;                   // Expiry timestamp (PUBLIC)
-    
+    signal input credential_hash;             // Poseidon hash from Solana (PUBLIC)
+
     // Issuer's Baby JubJub public key (PUBLIC)
     signal input issuerPublicKeyX;            
     signal input issuerPublicKeyY;
@@ -91,4 +91,4 @@ template AgeVerification() {
 }
 
 // Declare public inputs
-component main {public [currentTime, expiresAt, issuerPublicKeyX, issuerPublicKeyY]} = AgeVerification();
+component main {public [currentTime, expiresAt, credential_hash, issuerPublicKeyX, issuerPublicKeyY]} = AgeVerification();
