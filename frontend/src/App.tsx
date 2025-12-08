@@ -1,33 +1,71 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState, useEffect } from 'react'
+import { Toaster } from 'sonner'
+import { HomePage } from '@/pages/HomePage'
+import { VaultPage } from '@/pages/VaultPage'
+import { initDB } from '@/lib/encryptedDB'
+import './index.css'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [privateKey, setPrivateKey] = useState<string | null>(null)
+  const [isInitialized, setIsInitialized] = useState(false)
+
+  useEffect(() => {
+    // Initialize IndexedDB
+    initDB()
+      .then(() => {
+        console.log('IndexedDB initialized')
+        setIsInitialized(true)
+      })
+      .catch((error) => {
+        console.error('Failed to initialize IndexedDB:', error)
+      })
+  }, [])
+
+  const handleCreateVault = (password: string) => {
+    setPrivateKey(password)
+  }
+
+  const handleAccessVault = (password: string) => {
+    setPrivateKey(password)
+  }
+
+  const handleLogout = () => {
+    setPrivateKey(null)
+  }
+
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <p className="mt-4 text-muted-foreground">Initializing secure storage...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+      <div className="dark">
+        {privateKey ? (
+          <VaultPage privateKey={privateKey} onLogout={handleLogout} />
+        ) : (
+          <HomePage 
+            onCreateVault={handleCreateVault}
+            onAccessVault={handleAccessVault}
+          />
+        )}
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+      <Toaster 
+        position="top-right" 
+        toastOptions={{
+          style: {
+            background: 'hsl(var(--card))',
+            color: 'hsl(var(--card-foreground))',
+            border: '1px solid hsl(var(--border))',
+          },
+        }}
+      />
     </>
   )
 }
