@@ -2,12 +2,16 @@ import { useState, useEffect } from 'react'
 import { Toaster } from 'sonner'
 import { HomePage } from '@/pages/HomePage'
 import { VaultPage } from '@/pages/VaultPage'
+import { GenerateProofPage } from '@/pages/GenerateProofPage'
 import { initDB } from '@/lib/encryptedDB'
 import './index.css'
+
+type AppView = 'home' | 'vault' | 'generateProof'
 
 function App() {
   const [privateKey, setPrivateKey] = useState<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [currentView, setCurrentView] = useState<AppView>('home')
 
   useEffect(() => {
     // Initialize IndexedDB
@@ -23,14 +27,30 @@ function App() {
 
   const handleCreateVault = (password: string) => {
     setPrivateKey(password)
+    setCurrentView('vault')
   }
 
   const handleAccessVault = (password: string) => {
     setPrivateKey(password)
+    setCurrentView('vault')
+  }
+
+  const handleNavigateToGenerateProof = () => {
+    setCurrentView('generateProof')
+  }
+
+  const handleBackToHome = () => {
+    setCurrentView('home')
+    setPrivateKey(null)
+  }
+
+  const handleBackToVault = () => {
+    setCurrentView('vault')
   }
 
   const handleLogout = () => {
     setPrivateKey(null)
+    setCurrentView('home')
   }
 
   if (!isInitialized) {
@@ -46,13 +66,26 @@ function App() {
 
   return (
     <>
-      <div className="dark">
-        {privateKey ? (
-          <VaultPage privateKey={privateKey} onLogout={handleLogout} />
-        ) : (
+      <div className="">
+        {currentView === 'home' && (
           <HomePage 
             onCreateVault={handleCreateVault}
             onAccessVault={handleAccessVault}
+            onNavigateToGenerateProof={handleNavigateToGenerateProof}
+          />
+        )}
+        
+        {currentView === 'vault' && privateKey && (
+          <VaultPage 
+            privateKey={privateKey} 
+            onLogout={handleLogout}
+          />
+        )}
+        
+        {currentView === 'generateProof' && (
+          <GenerateProofPage 
+            privateKey={privateKey || undefined}
+            onBack={privateKey ? handleBackToVault : handleBackToHome}
           />
         )}
       </div>
