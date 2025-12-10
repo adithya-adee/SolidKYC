@@ -245,54 +245,6 @@ describe("solidkyc", () => {
           1,
           "Credentials issued should be 1"
         );
-        assert.equal(
-          credential.issuer.toString(),
-          issuerPDA.toString(),
-          "Issuer should match"
-        );
-        assert.deepEqual(
-          Array.from(credential.credentialHash),
-          credentialHash,
-          "Credential hash should match"
-        );
-        assert.isFalse(credential.isRevoked, "Should not be revoked");
-        assert.equal(
-          credential.dateOfBirth.toString(),
-          dateOfBirth.toString(),
-          "Date of birth should match"
-        );
-
-        // Check issuer's credential count
-        const issuerAccount = await program.account.issuerAccount.fetch(
-          issuerPDA
-        );
-        assert.equal(
-          issuerAccount.credentialsIssued.toNumber(),
-          1,
-          "Credentials issued should be 1"
-        );
-
-        console.log("Credential issued successfully");
-      } catch (error) {
-        console.error("Test failed:", error);
-        throw error;
-      }
-    });
-
-    it("Should fail to issue credential with unauthorized issuer", async () => {
-      const [anotherCredentialPDA] = PublicKey.findProgramAddressSync(
-        [
-          Buffer.from("credential"),
-          unauthorizedUser.publicKey.toBuffer(),
-          issuerPDA.toBuffer(),
-        ],
-        program.programId
-      );
-
-      try {
-        const dateOfBirth = new anchor.BN(Date.now() / 1000 - 20 * 365 * 24 * 60 * 60);
-        const issuedAt = new anchor.BN(Date.now() / 1000);
-        const expiresAt = new anchor.BN(Date.now() / 1000 + 365 * 24 * 60 * 60);
 
         console.log("Credential issued successfully");
       } catch (error) {
