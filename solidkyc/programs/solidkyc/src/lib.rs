@@ -26,8 +26,8 @@ pub mod solidkyc {
 
     pub fn issue_credential(
         ctx: Context<IssueCredential>,
+        _issuer_name: String,
         credential_hash: [u8; 32],
-        date_of_birth: i64,
         issued_at: i64,
         expires_at: i64,
         zk_signature_r8x: [u8; 32],
@@ -38,7 +38,6 @@ pub mod solidkyc {
         credential.holder = ctx.accounts.holder.key();
         credential.issuer = ctx.accounts.issuer_account.key();
         credential.credential_hash = credential_hash;
-        credential.date_of_birth = date_of_birth;
         credential.issued_at = issued_at;
         credential.expires_at = expires_at;
         credential.zk_signature_r8x = zk_signature_r8x;
@@ -53,21 +52,21 @@ pub mod solidkyc {
         Ok(())
     }
 
-    pub fn revoke_credential(ctx: Context<RevokeCredential>) -> Result<()> {
+    pub fn revoke_credential(ctx: Context<RevokeCredential>, _issuer_name: String) -> Result<()> {
         let credential = &mut ctx.accounts.credential_account;
         require!(!credential.is_revoked, SolidKycError::CredentialAlreadyRevoked);
         credential.is_revoked = true;
         Ok(())
     }
 
-    pub fn deactivate_issuer(ctx: Context<DeactivateIssuer>) -> Result<()> {
+    pub fn deactivate_issuer(ctx: Context<DeactivateIssuer>, _issuer_name: String) -> Result<()> {
         let issuer = &mut ctx.accounts.issuer_account;
         require!(issuer.is_active, SolidKycError::IssuerAlreadyInactive);
         issuer.is_active = false;
         Ok(())
     }
 
-    pub fn reactivate_issuer(ctx: Context<ReactivateIssuer>) -> Result<()> {
+    pub fn reactivate_issuer(ctx: Context<ReactivateIssuer>, _issuer_name: String) -> Result<()> {
         let issuer = &mut ctx.accounts.issuer_account;
         require!(!issuer.is_active, SolidKycError::IssuerAlreadyActive);
         issuer.is_active = true;
@@ -99,7 +98,6 @@ pub struct UserCredential {
     pub holder: Pubkey,                 // 32
     pub issuer: Pubkey,                 // 32
     pub credential_hash: [u8; 32],      // 32
-    pub date_of_birth: i64,             // 8
     pub issued_at: i64,                 // 8
     pub expires_at: i64,                // 8
     pub zk_signature_r8x: [u8; 32],     // 32
@@ -110,7 +108,7 @@ pub struct UserCredential {
 }
 
 impl UserCredential {
-    pub const LEN: usize = 8 + 32 + 32 + 32 + 8 + 8 + 8 + 32 + 32 + 32 + 1 + 1;
+    pub const LEN: usize = 8 + 32 + 32 + 32 + 8 + 8 + 32 + 32 + 32 + 1 + 1;
 }
 
 // Instruction Contexts
@@ -122,7 +120,7 @@ pub struct InitializeIssuer<'info> {
         init,
         payer = authority,
         space = IssuerAccount::LEN,
-        seeds = [b"issuer", authority.key().as_ref()],
+        seeds = [b"issuer", authority.key().as_ref(), name.as_bytes()],
         bump
     )]
     pub issuer_account: Account<'info, IssuerAccount>,
@@ -134,6 +132,7 @@ pub struct InitializeIssuer<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(issuer_name: String)]
 pub struct IssueCredential<'info> {
     #[account(
         init,
@@ -146,7 +145,7 @@ pub struct IssueCredential<'info> {
     
     #[account(
         mut,
-        seeds = [b"issuer", issuer_authority.key().as_ref()],
+        seeds = [b"issuer", issuer_authority.key().as_ref(), issuer_name.as_bytes()],
         bump = issuer_account.bump,
         constraint = issuer_account.authority == issuer_authority.key() @ SolidKycError::UnauthorizedIssuer,
         constraint = issuer_account.is_active @ SolidKycError::IssuerInactive
@@ -163,6 +162,7 @@ pub struct IssueCredential<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(issuer_name: String)]
 pub struct RevokeCredential<'info> {
     #[account(
         mut,
@@ -173,7 +173,7 @@ pub struct RevokeCredential<'info> {
     pub credential_account: Account<'info, UserCredential>,
     
     #[account(
-        seeds = [b"issuer", issuer_authority.key().as_ref()],
+        seeds = [b"issuer", issuer_authority.key().as_ref(), issuer_name.as_bytes()],
         bump = issuer_account.bump,
         constraint = issuer_account.authority == issuer_authority.key() @ SolidKycError::UnauthorizedIssuer
     )]
@@ -184,10 +184,11 @@ pub struct RevokeCredential<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(issuer_name: String)]
 pub struct DeactivateIssuer<'info> {
     #[account(
         mut,
-        seeds = [b"issuer", authority.key().as_ref()],
+        seeds = [b"issuer", authority.key().as_ref(), issuer_name.as_bytes()],
         bump = issuer_account.bump,
         constraint = issuer_account.authority == authority.key() @ SolidKycError::UnauthorizedAdmin
     )]
@@ -198,10 +199,11 @@ pub struct DeactivateIssuer<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(issuer_name: String)]
 pub struct ReactivateIssuer<'info> {
     #[account(
         mut,
-        seeds = [b"issuer", authority.key().as_ref()],
+        seeds = [b"issuer", authority.key().as_ref(), issuer_name.as_bytes()],
         bump = issuer_account.bump,
         constraint = issuer_account.authority == authority.key() @ SolidKycError::UnauthorizedAdmin
     )]

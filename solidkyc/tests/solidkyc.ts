@@ -16,6 +16,7 @@ describe("solidkyc", () => {
 
   let issuerPDA: PublicKey;
   let issuerBump: number;
+  const issuerName = "Test KYC Issuer";
 
   let credentialPDA: PublicKey;
   let credentialBump: number;
@@ -66,7 +67,7 @@ describe("solidkyc", () => {
 
     // Derive PDAs
     [issuerPDA, issuerBump] = PublicKey.findProgramAddressSync(
-      [Buffer.from("issuer"), issuerAuthority.publicKey.toBuffer()],
+      [Buffer.from("issuer"), issuerAuthority.publicKey.toBuffer(), Buffer.from(issuerName)],
       program.programId
     );
 
@@ -78,12 +79,9 @@ describe("solidkyc", () => {
   describe("Initialize Issuer", () => {
     it("Should initialize issuer successfully", async () => {
       try {
-        const issuerName = "Test KYC Issuer";
-
         const txn = await program.methods
           .initializeIssuer(issuerName, zkPublicKeyX, zkPublicKeyY)
-          .accounts({
-            issuerAccount: issuerPDA,
+          .accountsPartial({
             authority: issuerAuthority.publicKey,
             systemProgram: anchor.web3.SystemProgram.programId,
           })
@@ -127,12 +125,11 @@ describe("solidkyc", () => {
       }
     });
 
-    it("Should fail to initialize issuer twice with same authority", async () => {
+    it("Should fail to initialize issuer twice with same name and authority", async () => {
       try {
         await program.methods
-          .initializeIssuer("Duplicate Issuer", zkPublicKeyX, zkPublicKeyY)
-          .accounts({
-            issuerAccount: issuerPDA,
+          .initializeIssuer(issuerName, zkPublicKeyX, zkPublicKeyY)
+          .accountsPartial({
             authority: issuerAuthority.publicKey,
             systemProgram: anchor.web3.SystemProgram.programId,
           })
@@ -142,6 +139,37 @@ describe("solidkyc", () => {
         assert.fail("Should have thrown an error");
       } catch (error) {
         assert.include(error.message, "already in use");
+      }
+    });
+
+    it("Should allow creating multiple issuers for same authority with different names", async () => {
+      try {
+        const secondIssuerName = "Second KYC Issuer";
+        const [secondIssuerPDA] = PublicKey.findProgramAddressSync(
+          [Buffer.from("issuer"), issuerAuthority.publicKey.toBuffer(), Buffer.from(secondIssuerName)],
+          program.programId
+        );
+
+        const txn = await program.methods
+          .initializeIssuer(secondIssuerName, zkPublicKeyX, zkPublicKeyY)
+          .accountsPartial({
+            authority: issuerAuthority.publicKey,
+            systemProgram: anchor.web3.SystemProgram.programId,
+          })
+          .signers([issuerAuthority])
+          .rpc();
+
+        console.log("Second issuer created:", txn);
+
+        const issuerAccount = await program.account.issuerAccount.fetch(
+          secondIssuerPDA
+        );
+
+        assert.equal(issuerAccount.name, secondIssuerName, "Second issuer name should match");
+        console.log("Successfully created multiple issuers for same authority!");
+      } catch (error) {
+        console.error("Test failed:", error);
+        throw error;
       }
     });
   });
@@ -163,23 +191,20 @@ describe("solidkyc", () => {
 
     it("Should issue credential successfully", async () => {
       try {
-        const dateOfBirth = new anchor.BN(Date.now() / 1000 - 20 * 365 * 24 * 60 * 60); // 20 years ago
         const issuedAt = new anchor.BN(Date.now() / 1000);
         const expiresAt = new anchor.BN(Date.now() / 1000 + 365 * 24 * 60 * 60); // 1 year from now
 
         const txn = await program.methods
           .issueCredential(
+            issuerName,
             credentialHash,
-            dateOfBirth,
             issuedAt,
             expiresAt,
             zkSignatureR8x,
             zkSignatureR8y,
             zkSignatureS
           )
-          .accounts({
-            credentialAccount: credentialPDA,
-            issuerAccount: issuerPDA,
+          .accountsPartial({
             issuerAuthority: issuerAuthority.publicKey,
             holder: holder.publicKey,
             systemProgram: anchor.web3.SystemProgram.programId,
@@ -210,11 +235,6 @@ describe("solidkyc", () => {
           "Credential hash should match"
         );
         assert.isFalse(credential.isRevoked, "Should not be revoked");
-        assert.equal(
-          credential.dateOfBirth.toString(),
-          dateOfBirth.toString(),
-          "Date of birth should match"
-        );
 
         // Check issuer's credential count
         const issuerAccount = await program.account.issuerAccount.fetch(
@@ -244,22 +264,20 @@ describe("solidkyc", () => {
       );
 
       try {
-        const dateOfBirth = new anchor.BN(Date.now() / 1000 - 20 * 365 * 24 * 60 * 60);
         const issuedAt = new anchor.BN(Date.now() / 1000);
         const expiresAt = new anchor.BN(Date.now() / 1000 + 365 * 24 * 60 * 60);
 
         await program.methods
           .issueCredential(
+            issuerName,
             credentialHash,
-            dateOfBirth,
             issuedAt,
             expiresAt,
             zkSignatureR8x,
             zkSignatureR8y,
             zkSignatureS
           )
-          .accounts({
-            credentialAccount: anotherCredentialPDA,
+          .accountsPartial({
             issuerAccount: issuerPDA,
             issuerAuthority: unauthorizedUser.publicKey,
             holder: unauthorizedUser.publicKey,
@@ -273,11 +291,13 @@ describe("solidkyc", () => {
         const errorStr = error.toString();
         const hasUnauthorized =
           errorStr.includes("UnauthorizedIssuer") ||
+          errorStr.includes("ConstraintRaw") ||
           errorStr.includes("ConstraintSeeds") ||
           (error.logs &&
             error.logs.some(
               (log) =>
                 log.includes("UnauthorizedIssuer") ||
+                log.includes("ConstraintRaw") ||
                 log.includes("ConstraintSeeds")
             ));
 
@@ -293,8 +313,8 @@ describe("solidkyc", () => {
     it("Should revoke credential successfully", async () => {
       try {
         const txn = await program.methods
-          .revokeCredential()
-          .accounts({
+          .revokeCredential(issuerName)
+          .accountsPartial({
             credentialAccount: credentialPDA,
             issuerAccount: issuerPDA,
             issuerAuthority: issuerAuthority.publicKey,
@@ -321,8 +341,8 @@ describe("solidkyc", () => {
     it("Should fail to revoke already revoked credential", async () => {
       try {
         await program.methods
-          .revokeCredential()
-          .accounts({
+          .revokeCredential(issuerName)
+          .accountsPartial({
             credentialAccount: credentialPDA,
             issuerAccount: issuerPDA,
             issuerAuthority: issuerAuthority.publicKey,
@@ -349,36 +369,36 @@ describe("solidkyc", () => {
 
     it("Should fail to revoke credential with unauthorized issuer", async () => {
       // Create a new credential to test unauthorized revocation
+      const newHolder = Keypair.generate();
+      await airdrop(newHolder.publicKey, anchor.web3.LAMPORTS_PER_SOL);
+
       const [newCredentialPDA] = PublicKey.findProgramAddressSync(
         [
           Buffer.from("credential"),
-          unauthorizedUser.publicKey.toBuffer(),
+          newHolder.publicKey.toBuffer(),
           issuerPDA.toBuffer(),
         ],
         program.programId
       );
 
       try {
-        const dateOfBirth = new anchor.BN(Date.now() / 1000 - 25 * 365 * 24 * 60 * 60);
         const issuedAt = new anchor.BN(Date.now() / 1000);
         const expiresAt = new anchor.BN(Date.now() / 1000 + 365 * 24 * 60 * 60);
 
         // First issue a credential
         await program.methods
           .issueCredential(
+            issuerName,
             credentialHash,
-            dateOfBirth,
             issuedAt,
             expiresAt,
             zkSignatureR8x,
             zkSignatureR8y,
             zkSignatureS
           )
-          .accounts({
-            credentialAccount: newCredentialPDA,
-            issuerAccount: issuerPDA,
+          .accountsPartial({
             issuerAuthority: issuerAuthority.publicKey,
-            holder: unauthorizedUser.publicKey,
+            holder: newHolder.publicKey,
             systemProgram: anchor.web3.SystemProgram.programId,
           })
           .signers([issuerAuthority])
@@ -386,8 +406,8 @@ describe("solidkyc", () => {
 
         // Try to revoke with wrong authority
         await program.methods
-          .revokeCredential()
-          .accounts({
+          .revokeCredential(issuerName)
+          .accountsPartial({
             credentialAccount: newCredentialPDA,
             issuerAccount: issuerPDA,
             issuerAuthority: unauthorizedUser.publicKey,
@@ -401,11 +421,13 @@ describe("solidkyc", () => {
         const hasUnauthorized =
           errorStr.includes("UnauthorizedIssuer") ||
           errorStr.includes("ConstraintSeeds") ||
+          errorStr.includes("ConstraintSigner") ||
           (error.logs &&
             error.logs.some(
               (log) =>
                 log.includes("UnauthorizedIssuer") ||
-                log.includes("ConstraintSeeds")
+                log.includes("ConstraintSeeds") ||
+                log.includes("ConstraintSigner")
             ));
 
         assert.isTrue(
@@ -420,9 +442,8 @@ describe("solidkyc", () => {
     it("Should deactivate issuer successfully", async () => {
       try {
         const txn = await program.methods
-          .deactivateIssuer()
-          .accounts({
-            issuerAccount: issuerPDA,
+          .deactivateIssuer(issuerName)
+          .accountsPartial({
             authority: issuerAuthority.publicKey,
           })
           .signers([issuerAuthority])
@@ -447,9 +468,8 @@ describe("solidkyc", () => {
     it("Should fail to deactivate already inactive issuer", async () => {
       try {
         await program.methods
-          .deactivateIssuer()
-          .accounts({
-            issuerAccount: issuerPDA,
+          .deactivateIssuer(issuerName)
+          .accountsPartial({
             authority: issuerAuthority.publicKey,
           })
           .signers([issuerAuthority])
@@ -471,16 +491,6 @@ describe("solidkyc", () => {
     });
 
     it("Should fail to issue credential when issuer is inactive", async () => {
-      const [inactiveCredentialPDA] = PublicKey.findProgramAddressSync(
-        [
-          Buffer.from("credential"),
-          holder.publicKey.toBuffer(),
-          issuerPDA.toBuffer(),
-        ],
-        program.programId
-      );
-
-      // Try to create a new keypair for holder to avoid duplicate
       const newHolder = Keypair.generate();
       await airdrop(newHolder.publicKey, anchor.web3.LAMPORTS_PER_SOL);
 
@@ -494,23 +504,20 @@ describe("solidkyc", () => {
       );
 
       try {
-        const dateOfBirth = new anchor.BN(Date.now() / 1000 - 30 * 365 * 24 * 60 * 60);
         const issuedAt = new anchor.BN(Date.now() / 1000);
         const expiresAt = new anchor.BN(Date.now() / 1000 + 365 * 24 * 60 * 60);
 
         await program.methods
           .issueCredential(
+            issuerName,
             credentialHash,
-            dateOfBirth,
             issuedAt,
             expiresAt,
             zkSignatureR8x,
             zkSignatureR8y,
             zkSignatureS
           )
-          .accounts({
-            credentialAccount: newCredPDA,
-            issuerAccount: issuerPDA,
+          .accountsPartial({
             issuerAuthority: issuerAuthority.publicKey,
             holder: newHolder.publicKey,
             systemProgram: anchor.web3.SystemProgram.programId,
@@ -535,9 +542,8 @@ describe("solidkyc", () => {
     it("Should reactivate issuer successfully", async () => {
       try {
         const txn = await program.methods
-          .reactivateIssuer()
-          .accounts({
-            issuerAccount: issuerPDA,
+          .reactivateIssuer(issuerName)
+          .accountsPartial({
             authority: issuerAuthority.publicKey,
           })
           .signers([issuerAuthority])
@@ -562,9 +568,8 @@ describe("solidkyc", () => {
     it("Should fail to reactivate already active issuer", async () => {
       try {
         await program.methods
-          .reactivateIssuer()
-          .accounts({
-            issuerAccount: issuerPDA,
+          .reactivateIssuer(issuerName)
+          .accountsPartial({
             authority: issuerAuthority.publicKey,
           })
           .signers([issuerAuthority])
