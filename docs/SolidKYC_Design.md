@@ -395,3 +395,156 @@ SolidKYC enforces a strong security posture based on:
 
 **Version:** v1 (MVP Design Document)
 
+# STEP VERFICATION:
+```mermaid
+graph TB
+    Start([User Wants to Prove Age ≥ 18]) --> FetchCred[User: Fetch CredentialAccount from Solana]
+    
+    FetchCred --> FetchIssuer[User: Fetch IssuerAccount from Solana]
+    
+    FetchIssuer --> PrepareInput[User: Prepare Circuit Inputs<br/>dateOfBirth, credential_hash,<br/>signatures, issuer pubkeys, timestamps]
+    
+    PrepareInput --> GenProof[User: Generate ZK Proof<br/>Circuit verifies: hash, signature, age ≥ 18]
+    
+    GenProof --> GetChallenge[User: Request Challenge/Nonce<br/>from Verifier Server]
+    
+    GetChallenge --> SignChallenge[User: Sign Challenge with<br/>Solana Wallet Private Key]
+    
+    SignChallenge --> SendData[User Sends to Verifier:<br/>1. ZK Proof<br/>2. Public Signals currentTime, expiresAt, issuerPubKeyX/Y<br/>3. User Solana Public Key<br/>4. User Signature on Challenge<br/>5. Challenge Nonce]
+    
+    SendData --> Verifier[Verifier Backend Receives Data]
+    
+    Verifier --> Step1{Step 1: Verify ZK Proof<br/>Cryptographically Valid?}
+    Step1 -->|Invalid| Reject1([REJECT: Invalid ZK Proof])
+    
+    Step1 -->|Valid| Step2{Step 2: Verify Challenge<br/>Not Used & Not Expired?}
+    Step2 -->|Invalid| Reject2([REJECT: Invalid/Used Challenge])
+    
+    Step2 -->|Valid| Step3{Step 3: Verify User Signature<br/>on Challenge?}
+    Step3 -->|Invalid| Reject3([REJECT: Invalid Signature<br/>Not Credential Holder])
+    
+    Step3 -->|Valid| Step4[Step 4: Extract Public Signals<br/>currentTime, expiresAt, issuerPubKeyX/Y]
+    
+    Step4 --> Step5{Step 5: Check Proof Freshness<br/>currentTime within 5 min?}
+    Step5 -->|No| Reject4([REJECT: Proof Too Old])
+    
+    Step5 -->|Yes| Step6{Step 6: Check Expiry<br/>currentTime < expiresAt?}
+    Step6 -->|No| Reject5([REJECT: Credential Expired])
+    
+    Step6 -->|Yes| Step7[Step 7: Query Solana<br/>Find IssuerAccount by pubkeys]
+    
+    Step7 --> Step8{Step 8: Issuer Exists<br/>on Solana?}
+    Step8 -->|No| Reject6([REJECT: Issuer Not Registered])
+    
+    Step8 -->|Yes| Step9{Step 9: Issuer Active?}
+    Step9 -->|No| Reject7([REJECT: Issuer Revoked])
+    
+    Step9 -->|Yes| Step10{Step 10: Issuer PubKeys<br/>Match Solana?}
+    Step10 -->|No| Reject8([REJECT: Key Mismatch])
+    
+    Step10 -->|Yes| Step11[Step 11: Find CredentialAccount PDA<br/>using user pubkey + issuer]
+    
+    Step11 --> Step12{Step 12: Credential<br/>Exists?}
+    Step12 -->|No| Reject9([REJECT: No Credential Found])
+    
+    Step12 -->|Yes| Step13{Step 13: credential.holder ==<br/>user public key?}
+    Step13 -->|No| Reject10([REJECT: Not Holder<br/>Proof Transfer Attack])
+    
+    Step13 -->|Yes| Step14{Step 14: Credential<br/>Revoked?}
+    Step14 -->|Yes| Reject11([REJECT: Credential Revoked])
+    
+    Step14 -->|No| Step15[Step 15: Mark Challenge as Used]
+    
+    Step15 --> AllValid[All Checks Passed ✓]
+    
+    AllValid --> Accept([ACCEPT: User Verified as 18+])
+    
+    style Start fill:#e1f5ff
+    style Accept fill:#c8e6c9
+    style Reject1 fill:#ffcdd2
+    style Reject2 fill:#ffcdd2
+    style Reject3 fill:#ffcdd2
+    style Reject4 fill:#ffcdd2
+    style Reject5 fill:#ffcdd2
+    style Reject6 fill:#ffcdd2
+    style Reject7 fill:#ffcdd2
+    style Reject8 fill:#ffcdd2
+    style Reject9 fill:#ffcdd2
+    style Reject10 fill:#ffcdd2
+    style Reject11 fill:#ffcdd2
+    style Verifier fill:#fff9c4
+    style GenProof fill:#e1bee7
+    style Step7 fill:#c5cae9
+```
+
+## PDA :
+```rust
+use anchor_lang::prelude::*;
+
+#[account]
+pub struct IssuerAccount {
+    /// Authority that controls this issuer account (Solana Ed25519 pubkey)
+    pub authority: Pubkey,                    // 32 bytes
+    
+    /// Baby JubJub public key X coordinate (for ZK signature verification)
+    pub zk_public_key_x: [u8; 32],           // 32 bytes
+    
+    /// Baby JubJub public key Y coordinate (for ZK signature verification)
+    pub zk_public_key_y: [u8; 32],           // 32 bytes
+    
+    /// Issuer name/identifier
+    pub name: String,                         // 4 + len bytes
+    
+    /// Whether this issuer is currently active
+    pub is_active: bool,                      // 1 byte
+    
+    /// When this issuer was registered
+    pub registered_at: i64,                   // 8 bytes (Unix timestamp)
+    
+    /// Total credentials issued
+    pub credentials_issued: u64,              // 8 bytes
+    
+    /// Bump seed for PDA derivation
+    pub bump: u8,                            // 1 byte
+}
+
+#[account]
+pub struct CredentialAccount {
+    /// Owner/holder of this credential (user's Solana pubkey)
+    pub holder: Pubkey,                       // 32 bytes
+    
+    /// Issuer who signed this credential (references IssuerAccount)
+    pub issuer: Pubkey,                       // 32 bytes
+    
+    /// Poseidon hash of the credential data
+    pub credential_hash: [u8; 32],           // 32 bytes
+    
+    /// Date of birth (Unix timestamp)
+    pub date_of_birth: i64,                  // 8 bytes
+    
+    /// When credential was issued (Unix timestamp)
+    pub issued_at: i64,                      // 8 bytes
+    
+    /// When credential expires (Unix timestamp)
+    pub expires_at: i64,                     // 8 bytes
+    
+    /// Baby JubJub signature R8 point X coordinate
+    pub zk_signature_r8x: [u8; 32],          // 32 bytes
+    
+    /// Baby JubJub signature R8 point Y coordinate
+    pub zk_signature_r8y: [u8; 32],          // 32 bytes
+    
+    /// Baby JubJub signature S value
+    pub zk_signature_s: [u8; 32],            // 32 bytes
+    
+    /// Whether this credential has been revoked
+    pub is_revoked: bool,                    // 1 byte
+    
+    /// Bump seed for PDA derivation
+    pub bump: u8,                            // 1 byte
+}
+
+// PDA Seeds for derivation
+// IssuerAccount PDA: ["issuer", authority.key(), issuer.key(), bump]
+// CredentialAccount PDA: ["credential", holder.key(), issuer.key(), bump]
+```
