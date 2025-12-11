@@ -1,8 +1,9 @@
 import express, { json, Request, Response } from "express";
 import { verifyProof } from "./verifier";
 import { generateBabyJubJubKeys, signCredentialHash } from "./simulate_issuer";
-import { buildPoseidon, buildEddsa } from "circomlibjs";
+import { buildPoseidon, buildEddsa, buildBabyjub } from "circomlibjs";
 import { PublicKey } from "@solana/web3.js";
+import { BN } from "@coral-xyz/anchor";
 import {
   initializeSolana,
   bigIntToBytes32,
@@ -112,13 +113,14 @@ app.post("/issue_credentials", async (req: Request, res: Response) => {
 
     const signature = await signCredentialHash(privateKey, credential_hash);
     
-    // Get eddsa to access the field converter
-    const eddsa = await buildEddsa();
+    // Get babyJub to access the field converter (eddsa uses babyJub's field)
+    const babyJub = await buildBabyjub();
     
-    // EdDSA signature components - convert F1Field objects to BigInt properly
-    const R8x = eddsa.F.toObject(signature.R8[0]);
-    const R8y = eddsa.F.toObject(signature.R8[1]);
-    const S = eddsa.F.toObject(signature.S);
+    // EdDSA signature components - R8 coordinates are F1Field, S might already be BigInt
+    const R8x = babyJub.F.toObject(signature.R8[0]);
+    const R8y = babyJub.F.toObject(signature.R8[1]);
+    // S is returned as a Buffer by circomlibjs, convert to BigInt
+    const S = typeof signature.S === 'bigint' ? signature.S : babyJub.F.toObject(signature.S);
 
     // Convert to byte arrays for Solana
     const credentialHashBytes = bigIntToBytes32(credential_hash);
@@ -148,8 +150,8 @@ app.post("/issue_credentials", async (req: Request, res: Response) => {
         .issueCredential(
           solanaConfig.issuerName,
           credentialHashBytes,
-          currentTime,
-          expiresAt,
+          new BN(currentTime),
+          new BN(expiresAt),
           zkSignatureR8xBytes,
           zkSignatureR8yBytes,
           zkSignatureSBytes
