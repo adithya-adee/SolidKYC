@@ -1,4 +1,7 @@
 import { buildBabyjub, buildEddsa } from "circomlibjs";
+import * as dotenv from "dotenv";
+
+dotenv.config();
 
 /**
  * Generates BabyJubJub key pair for credential signing (simulation purposes).
@@ -10,8 +13,9 @@ import { buildBabyjub, buildEddsa } from "circomlibjs";
 export async function generateBabyJubJubKeys() {
     const babyJub = await buildBabyjub();
 
-    // Use a fixed private key (a BigInt)
-    const privateKey = BigInt("1234567890123456789012345678901234567890");
+    // Use a fixed private key from environment (a BigInt)
+    const zkPrivateKey = process.env.ZK_PRIVATE_KEY || "1234567890123456789012345678901234567890";
+    const privateKey = BigInt(zkPrivateKey);
 
     // Generate the public key from the private key
     // The public key is a point on the Baby Jubjub curve (x, y coordinates)
