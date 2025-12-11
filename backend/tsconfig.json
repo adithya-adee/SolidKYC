@@ -12,11 +12,7 @@
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
         "resolveJsonModule": true,
-        "moduleResolution": "node",
-        "typeRoots": [
-            "./node_modules/@types",
-            "./src"
-        ]
+        "moduleResolution": "node"
     },
     "include": [
         "src/**/*"
