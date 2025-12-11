@@ -2,6 +2,7 @@ import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { AnchorProvider, Program, Wallet } from "@coral-xyz/anchor";
 import * as dotenv from "dotenv";
 import { buildBabyjub } from "circomlibjs";
+import { Solidkyc } from "./types/solidkyc";
 
 dotenv.config();
 
@@ -58,8 +59,9 @@ async function initializeIssuer() {
   }
 
   // Convert public key coordinates to BigInt
-  const publicKeyXBigInt = typeof publicKeyX === 'bigint' ? publicKeyX : BigInt((publicKeyX as any).toString());
-  const publicKeyYBigInt = typeof publicKeyY === 'bigint' ? publicKeyY : BigInt((publicKeyY as any).toString());
+  // circomlibjs returns F1Field objects, use F.toObject() to get BigInt
+  const publicKeyXBigInt = babyJub.F.toObject(publicKeyX);
+  const publicKeyYBigInt = babyJub.F.toObject(publicKeyY);
 
   const zkPublicKeyXBytes = bigIntToBytes32(publicKeyXBigInt);
   const zkPublicKeyYBytes = bigIntToBytes32(publicKeyYBigInt);
@@ -72,7 +74,7 @@ async function initializeIssuer() {
   // Load program
   const programId = new PublicKey(programIdStr);
   const idl = require("./types/solidkyc.json");
-  const program = new Program(idl, programId, provider);
+  const program = new Program<Solidkyc>(idl, provider);
 
   // Derive issuer PDA
   const [issuerPDA, bump] = PublicKey.findProgramAddressSync(
@@ -107,6 +109,9 @@ async function initializeIssuer() {
       authorityKeypair.publicKey,
       2 * 1e9 // 2 SOL
     );
+
+    const latestBlockhash = await provider.connection.getLatestBlockhash();
+
     await connection.confirmTransaction(airdropSignature);
     console.log("✓ Airdrop successful\n");
   } catch (err) {
@@ -122,7 +127,7 @@ async function initializeIssuer() {
         zkPublicKeyXBytes,
         zkPublicKeyYBytes
       )
-      .accounts({
+      .accountsPartial({
         issuerAccount: issuerPDA,
         authority: authorityKeypair.publicKey,
         systemProgram: SystemProgram.programId,

@@ -1,6 +1,8 @@
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { AnchorProvider, Program, Wallet } from "@coral-xyz/anchor";
 import * as dotenv from "dotenv";
+import { Solidkyc } from "./types/solidkyc";
+import IDL from "./types/solidkyc.json";
 
 dotenv.config();
 
@@ -55,11 +57,8 @@ export function initializeSolana(): SolanaConfig {
   // Create program ID
   const programId = new PublicKey(programIdStr);
 
-  // Load the IDL (we'll use the types from solidkyc.ts)
-  const idl = require("./types/solidkyc.json");
-
-  // Create program instance
-  const program = new Program(idl, programId, provider);
+  // Create program instance with proper typing
+  const program = new Program<Solidkyc>(IDL as Solidkyc, provider);
 
   console.log("Solana initialized:");
   console.log("- RPC URL:", rpcUrl);
