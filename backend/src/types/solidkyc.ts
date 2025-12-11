@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/solidkyc.json`.
  */
 export type Solidkyc = {
-  "address": "5AFgFmdQthc3DZKmygrsGZkNnCN9JYMefADiAvNXpYCg",
+  "address": "25sFtHdxx56aoPKM7sr8nq5P6QZnB1BeLqXq2S8fng8c",
   "metadata": {
     "name": "solidkyc",
     "version": "0.1.0",

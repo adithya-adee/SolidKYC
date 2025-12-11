@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("5AFgFmdQthc3DZKmygrsGZkNnCN9JYMefADiAvNXpYCg");
+declare_id!("25sFtHdxx56aoPKM7sr8nq5P6QZnB1BeLqXq2S8fng8c");
 
 #[program]
 pub mod solidkyc {

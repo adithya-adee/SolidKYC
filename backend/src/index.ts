@@ -111,16 +111,20 @@ app.post("/issue_credentials", async (req: Request, res: Response) => {
     } = await generateBabyJubJubKeys();
 
     const signature = await signCredentialHash(privateKey, credential_hash);
-    // EdDSA signature components (circomlibjs returns these as special types)
-    const R8x = signature.R8[0];
-    const R8y = signature.R8[1];
-    const S = signature.S;
+    
+    // Get eddsa to access the field converter
+    const eddsa = await buildEddsa();
+    
+    // EdDSA signature components - convert F1Field objects to BigInt properly
+    const R8x = eddsa.F.toObject(signature.R8[0]);
+    const R8y = eddsa.F.toObject(signature.R8[1]);
+    const S = eddsa.F.toObject(signature.S);
 
-    // Convert to byte arrays for Solana (handle both BigInt and other numeric types)
+    // Convert to byte arrays for Solana
     const credentialHashBytes = bigIntToBytes32(credential_hash);
-    const zkSignatureR8xBytes = bigIntToBytes32(BigInt((R8x as any).toString()));
-    const zkSignatureR8yBytes = bigIntToBytes32(BigInt((R8y as any).toString()));
-    const zkSignatureSBytes = bigIntToBytes32(BigInt((S as any).toString()));
+    const zkSignatureR8xBytes = bigIntToBytes32(R8x);
+    const zkSignatureR8yBytes = bigIntToBytes32(R8y);
+    const zkSignatureSBytes = bigIntToBytes32(S);
 
     // Derive PDAs
     const [issuerPDA] = await getIssuerPDA(
@@ -172,9 +176,9 @@ app.post("/issue_credentials", async (req: Request, res: Response) => {
         },
         credential_hash: credential_hash.toString(),
         signature: {
-          R8x: BigInt((R8x as any).toString()).toString(),
-          R8y: BigInt((R8y as any).toString()).toString(),
-          S: BigInt((S as any).toString()).toString(),
+          R8x: R8x.toString(),
+          R8y: R8y.toString(),
+          S: S.toString(),
         },
         issuer_public_key: {
           x: x.toString(),

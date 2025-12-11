@@ -21,9 +21,9 @@ export async function generateBabyJubJubKeys() {
     // The public key is a point on the Baby Jubjub curve (x, y coordinates)
     const publicKey = babyJub.mulPointEscalar(babyJub.Base8, privateKey);
 
-    // Public key components (BigInts)
-    const publicKeyX = publicKey[0];
-    const publicKeyY = publicKey[1];
+    // Public key components - convert F1Field objects to BigInt
+    const publicKeyX = babyJub.F.toObject(publicKey[0]);
+    const publicKeyY = babyJub.F.toObject(publicKey[1]);
 
     console.log("Private Key:", privateKey.toString());
     console.log("Public Key (X):", publicKeyX.toString());
