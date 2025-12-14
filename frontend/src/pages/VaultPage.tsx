@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Shield, LogOut, Database, Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { UploadDocumentCard } from '@/components/features/UploadDocumentCard'
+import { IssueDOBCredentialCard } from '@/components/features/SimulateDateOfBirth'
 import { GenerateZKCard } from '@/components/features/GenerateZKCard'
 import { DocumentListModal } from '@/components/features/DocumentListModal'
 import { toast } from 'sonner'
@@ -138,9 +138,9 @@ export function VaultPage({ privateKey, onLogout }: VaultPageProps) {
 
           {/* Cards Grid */}
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 animate-slide-up">
-            <UploadDocumentCard 
+            <IssueDOBCredentialCard 
               privateKey={privateKey}
-              onUploadSuccess={handleUploadSuccess}
+              onCredentialIssued={handleUploadSuccess}
             />
             <GenerateZKCard />
             

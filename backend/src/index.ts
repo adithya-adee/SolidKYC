@@ -1,4 +1,5 @@
 import express, { json, Request, Response } from "express";
+import cors from "cors";
 import { verifyProof } from "./verifier";
 import { generateBabyJubJubKeys, signCredentialHash } from "./simulate_issuer";
 import { buildPoseidon, buildEddsa, buildBabyjub } from "circomlibjs";
@@ -27,6 +28,14 @@ try {
   console.error("Failed to initialize Solana:", error);
   console.error("Server will start but /issue_credentials endpoint will not work");
 }
+
+// CORS configuration - allow requests from frontend
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Middleware
 app.use(express.json({ limit: "10mb" }));
