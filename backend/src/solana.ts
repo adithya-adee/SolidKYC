@@ -78,7 +78,7 @@ export function initializeSolana(): SolanaConfig {
 
 /**
  * Convert BigInt to 32-byte array (little-endian)
- * 
+ *
  * @param {bigint} value - BigInt value to convert
  * @returns {number[]} 32-byte array representation
  */
@@ -90,6 +90,20 @@ export function bigIntToBytes32(value: bigint): number[] {
     val = val >> 8n;
   }
   return bytes;
+}
+
+/**
+ * Convert 32-byte array (little-endian) back to BigInt
+ *
+ * @param {number[] | Uint8Array} bytes - 32-byte array in little-endian format
+ * @returns {bigint} The BigInt representation
+ */
+export function bytes32ToBigInt(bytes: number[] | Uint8Array): bigint {
+  let result = 0n;
+  for (let i = 31; i >= 0; i--) {
+    result = (result << 8n) | BigInt(bytes[i]);
+  }
+  return result;
 }
 
 /**

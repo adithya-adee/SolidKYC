@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Shield, ArrowLeft, FileText, CheckCircle2, Loader2, Download, Eye } from 'lucide-react'
+import { useWallet } from '@solana/wallet-adapter-react'
+import { Shield, ArrowLeft, FileText, CheckCircle2, Loader2, Download, Eye, AlertTriangle, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -7,18 +8,30 @@ import { Label } from '@/components/ui/label'
 import { Modal, ModalHeader, ModalTitle, ModalDescription, ModalFooter } from '@/components/ui/modal'
 import { toast } from 'sonner'
 import { getAllCredentials, getEncryptedData } from '@/lib/encryptedDB'
+import { validateCredentialData, generateProof, type CredentialData } from '@/lib/zkProof'
+import { verifyProof as verifyProofAPI } from '@/lib/api'
+import { WalletConnectModal } from '@/components/features/WalletConnectModal'
 
 interface GenerateProofPageProps {
   privateKey?: string
   onBack: () => void
 }
 
-type ProofStep = 'select' | 'input' | 'generating' | 'success'
+type ProofStep = 'select' | 'generating' | 'success' | 'error'
 
 interface SelectedCredential {
   id: number
   name: string
   type: string
+}
+
+interface GeneratedProofData {
+  proof: any
+  publicSignals: string[]
+  verificationResult?: any
+  timestamp: number
+  credentialId: number
+  credentialName: string
 }
 
 export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps) {
@@ -27,9 +40,13 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
   const [selectedDoc, setSelectedDoc] = useState<SelectedCredential | null>(null)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [password, setPassword] = useState('')
-  const [proofValue, setProofValue] = useState('')
-  const [generatedProof, setGeneratedProof] = useState<any>(null)
+  const [generatedProof, setGeneratedProof] = useState<GeneratedProofData | null>(null)
   const [showProofModal, setShowProofModal] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [showWalletModal, setShowWalletModal] = useState(false)
+  
+  // Wallet connection
+  const { connected, publicKey } = useWallet()
 
   // Load documents when component mounts
   useEffect(() => {
@@ -42,7 +59,9 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
   const loadDocuments = async () => {
     try {
       const creds = await getAllCredentials()
-      setDocuments(creds)
+      // Filter only KYC credentials
+      const kycCreds = creds.filter(doc => doc.type === 'kyc_credential')
+      setDocuments(kycCreds)
     } catch (error) {
       console.error('Failed to load documents:', error)
       toast.error('Failed to load documents')
@@ -50,6 +69,15 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
   }
 
   const handleSelectDocument = (doc: any) => {
+    // Check wallet connection first
+    if (!connected || !publicKey) {
+      setShowWalletModal(true)
+      toast.error('Wallet not connected', {
+        description: 'Please connect your Solana wallet to generate a proof',
+      })
+      return
+    }
+
     setSelectedDoc({
       id: doc.id,
       name: doc.metadata?.name || `Document ${doc.id}`,
@@ -57,7 +85,7 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
     })
     
     if (privateKey) {
-      setCurrentStep('input')
+      handleGenerateProof(doc.id, privateKey)
     } else {
       setShowPasswordModal(true)
     }
@@ -68,82 +96,109 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
       toast.error('Please enter your password')
       return
     }
-    setShowPasswordModal(false)
-    setCurrentStep('input')
-  }
-
-  const handleGenerateProof = async () => {
-    if (!proofValue) {
-      toast.error('Please enter a value to prove')
-      return
-    }
-
     if (!selectedDoc) {
       toast.error('No document selected')
       return
     }
+    setShowPasswordModal(false)
+    handleGenerateProof(selectedDoc.id, password)
+  }
+
+  const handleGenerateProof = async (credentialId: number, key: string) => {
+    if (!connected || !publicKey) {
+      toast.error('Wallet not connected')
+      setShowWalletModal(true)
+      return
+    }
 
     setCurrentStep('generating')
+    setErrorMessage('')
 
     try {
-      // Simulate proof generation with realistic delay
-      await new Promise(resolve => setTimeout(resolve, 3000))
+      // Step 1: Decrypt the credential from IndexedDB
+      toast.info('Decrypting credential...')
+      const credentialData = await getEncryptedData(credentialId, key)
+      
+      console.log('Decrypted credential data:', credentialData)
 
-      // Decrypt the document to use in proof
-      const key = privateKey || password
-      if (key) {
-        // Verify we can decrypt the document
-        await getEncryptedData(selectedDoc.id, key)
-        
-        // Generate mock ZK proof
-        const proof = {
-          proof: generateMockProof(),
-          publicSignals: [proofValue, Date.now().toString()],
-          verificationKey: generateMockVerificationKey(),
-          timestamp: Date.now(),
-          documentId: selectedDoc.id,
-          documentName: selectedDoc.name
-        }
-
-        setGeneratedProof(proof)
-        setCurrentStep('success')
-        toast.success('Zero-knowledge proof generated successfully!')
+      // Step 2: Validate the credential has all required fields
+      if (!validateCredentialData(credentialData)) {
+        throw new Error('Invalid credential data. This credential is missing required fields for proof generation.')
       }
-    } catch (error) {
-      console.error('Failed to generate proof:', error)
-      toast.error('Failed to generate proof. Invalid password or corrupted data.')
-      setCurrentStep('input')
-    }
-  }
 
-  const generateMockProof = () => {
-    // Generate a realistic-looking proof hash
-    const chars = '0123456789abcdef'
-    let proof = '0x'
-    for (let i = 0; i < 512; i++) {
-      proof += chars[Math.floor(Math.random() * chars.length)]
-    }
-    return proof
-  }
+      toast.info('Credential validated. Generating witness...')
 
-  const generateMockVerificationKey = () => {
-    const chars = '0123456789abcdef'
-    let key = '0x'
-    for (let i = 0; i < 64; i++) {
-      key += chars[Math.floor(Math.random() * chars.length)]
+      // Step 3: Generate the ZK proof
+      // This will:
+      // - Prepare input.json from credential data
+      // - Use age_verification.wasm to generate witness
+      // - Use circuit_0000.zkey to generate proof
+      const { proof, publicSignals } = await generateProof(credentialData as CredentialData)
+
+      console.log('Proof generated:', proof)
+      console.log('Public signals:', publicSignals)
+
+      toast.info('Proof generated. Verifying on blockchain...')
+
+      // Step 4: Submit proof to backend for verification
+      const verificationResult = await verifyProofAPI(
+        proof,
+        publicSignals,
+        publicKey.toString()
+      )
+
+      console.log('Verification result:', verificationResult)
+
+      if (verificationResult.verified) {
+        toast.success('Zero-knowledge proof verified successfully!', {
+          description: verificationResult.message || 'Your proof is valid and has been verified on-chain'
+        })
+        
+        setGeneratedProof({
+          proof,
+          publicSignals,
+          verificationResult,
+          timestamp: Date.now(),
+          credentialId,
+          credentialName: selectedDoc?.name || `Credential ${credentialId}`
+        })
+        
+        setCurrentStep('success')
+      } else {
+        throw new Error(verificationResult.error || 'Proof verification failed')
+      }
+
+    } catch (error: any) {
+      console.error('Failed to generate/verify proof:', error)
+      const message = error.message || 'Failed to generate proof. Please check your credential data.'
+      setErrorMessage(message)
+      setCurrentStep('error')
+      toast.error('Proof Generation Failed', {
+        description: message
+      })
     }
-    return key
   }
 
   const handleDownloadProof = () => {
     if (!generatedProof) return
 
-    const proofData = JSON.stringify(generatedProof, null, 2)
-    const blob = new Blob([proofData], { type: 'application/json' })
+    const proofData = {
+      proof: generatedProof.proof,
+      publicSignals: generatedProof.publicSignals,
+      verification: generatedProof.verificationResult,
+      metadata: {
+        timestamp: generatedProof.timestamp,
+        credentialId: generatedProof.credentialId,
+        credentialName: generatedProof.credentialName,
+        generatedAt: new Date(generatedProof.timestamp).toISOString()
+      }
+    }
+
+    const blob = new Blob([JSON.stringify(proofData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `zk-proof-${Date.now()}.json`
+    a.download = `zk-proof-${generatedProof.timestamp}.json`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -159,9 +214,9 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
   const handleReset = () => {
     setCurrentStep('select')
     setSelectedDoc(null)
-    setProofValue('')
     setGeneratedProof(null)
     setPassword('')
+    setErrorMessage('')
   }
 
   return (
@@ -183,10 +238,22 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
                 <h1 className="text-2xl font-bold">SolidKYC</h1>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="text-sm text-muted-foreground">
-                Step {currentStep === 'select' ? '1' : currentStep === 'input' ? '2' : currentStep === 'generating' ? '3' : '4'} of 4
-              </div>
+            <div className="flex items-center gap-3">
+              {connected && publicKey ? (
+                <div className="text-sm text-muted-foreground">
+                  Wallet: {publicKey.toString().slice(0, 8)}...{publicKey.toString().slice(-4)}
+                </div>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowWalletModal(true)}
+                  className="gap-2"
+                >
+                  <Wallet className="h-4 w-4" />
+                  Connect Wallet
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -199,7 +266,7 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
           <div className="mb-8 animate-fade-in">
             <h2 className="text-3xl font-bold mb-2">Generate Zero-Knowledge Proof</h2>
             <p className="text-muted-foreground">
-              Prove claims about your credentials without revealing the actual data
+              Prove you are over 18 without revealing your actual date of birth
             </p>
           </div>
 
@@ -208,17 +275,20 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
             <div className="animate-slide-up">
               <Card>
                 <CardHeader>
-                  <CardTitle>Select Document</CardTitle>
+                  <CardTitle>Select Credential</CardTitle>
                   <CardDescription>
-                    Choose which encrypted document to generate a proof for
+                    Choose which KYC credential to use for proof generation
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {documents.length === 0 ? (
                     <div className="text-center py-12">
                       <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                      <p className="text-muted-foreground mb-4">No documents found</p>
-                      <Button onClick={onBack}>Go Back</Button>
+                      <p className="text-muted-foreground mb-4">No KYC credentials found</p>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        You need to issue a KYC credential first before generating a proof
+                      </p>
+                      <Button onClick={onBack}>Go Back to Vault</Button>
                     </div>
                   ) : (
                     <div className="grid gap-3">
@@ -235,7 +305,7 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
                               </div>
                               <div>
                                 <h4 className="font-medium">
-                                  {doc.metadata?.name || `Document ${doc.id}`}
+                                  {doc.metadata?.name || `Credential ${doc.id}`}
                                 </h4>
                                 <p className="text-sm text-muted-foreground">
                                   {doc.type} • {new Date(doc.timestamp).toLocaleDateString()}
@@ -253,74 +323,7 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
             </div>
           )}
 
-          {/* Step 2: Input Proof Value */}
-          {currentStep === 'input' && (
-            <div className="animate-slide-up space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Selected Document</CardTitle>
-                  <CardDescription>
-                    {selectedDoc?.name}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="p-4 rounded-lg bg-muted/50 flex items-center gap-3">
-                    <FileText className="h-8 w-8 text-primary" />
-                    <div>
-                      <p className="font-medium">{selectedDoc?.name}</p>
-                      <p className="text-sm text-muted-foreground">{selectedDoc?.type}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Enter Proof Value</CardTitle>
-                  <CardDescription>
-                    Specify what you want to prove (e.g., "age &gt; 18", "country = US")
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="proof-value">Claim to Prove</Label>
-                    <Input
-                      id="proof-value"
-                      placeholder="e.g., age >= 21"
-                      value={proofValue}
-                      onChange={(e) => setProofValue(e.target.value)}
-                      autoFocus
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Example: "age &gt;= 21" or "country = USA"
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setCurrentStep('select')
-                        setSelectedDoc(null)
-                      }}
-                      className="flex-1"
-                    >
-                      Back
-                    </Button>
-                    <Button
-                      onClick={handleGenerateProof}
-                      className="flex-1"
-                      disabled={!proofValue}
-                    >
-                      Generate Proof
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* Step 3: Generating */}
+          {/* Step 2: Generating */}
           {currentStep === 'generating' && (
             <div className="animate-fade-in">
               <Card>
@@ -332,7 +335,10 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
                     <div>
                       <h3 className="text-2xl font-semibold mb-2">Generating Proof...</h3>
                       <p className="text-muted-foreground max-w-md">
-                        Creating zero-knowledge proof for: <span className="font-medium text-foreground">{proofValue}</span>
+                        Creating zero-knowledge proof for age verification
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        This may take a few moments...
                       </p>
                     </div>
                     <div className="w-full max-w-md">
@@ -346,7 +352,7 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
             </div>
           )}
 
-          {/* Step 4: Success */}
+          {/* Step 3: Success */}
           {currentStep === 'success' && generatedProof && (
             <div className="animate-slide-up space-y-6">
               <Card className="border-green-500/50">
@@ -356,9 +362,9 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
                       <CheckCircle2 className="h-16 w-16 text-green-500" />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-semibold mb-2">Proof Generated Successfully!</h3>
+                      <h3 className="text-2xl font-semibold mb-2">Proof Verified Successfully!</h3>
                       <p className="text-muted-foreground">
-                        Your zero-knowledge proof has been created
+                        Your zero-knowledge proof has been generated and verified on-chain
                       </p>
                     </div>
                   </div>
@@ -374,23 +380,19 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Document</Label>
-                    <p className="font-medium">{generatedProof.documentName}</p>
+                    <Label className="text-xs text-muted-foreground">Credential</Label>
+                    <p className="font-medium">{generatedProof.credentialName}</p>
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Claim</Label>
-                    <p className="font-medium">{proofValue}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Proof Hash (Preview)</Label>
-                    <p className="font-mono text-xs bg-muted p-2 rounded truncate">
-                      {generatedProof.proof.substring(0, 64)}...
+                    <Label className="text-xs text-muted-foreground">Verification Status</Label>
+                    <p className="font-medium text-green-600 dark:text-green-400">
+                      ✓ {generatedProof.verificationResult?.message || 'Verified'}
                     </p>
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Verification Key</Label>
-                    <p className="font-mono text-xs bg-muted p-2 rounded truncate">
-                      {generatedProof.verificationKey}
+                    <Label className="text-xs text-muted-foreground">Public Signals ({generatedProof.publicSignals.length})</Label>
+                    <p className="font-mono text-xs bg-muted p-2 rounded">
+                      {generatedProof.publicSignals.slice(0, 2).join(', ')}...
                     </p>
                   </div>
 
@@ -423,6 +425,35 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
               </Card>
             </div>
           )}
+
+          {/* Error State */}
+          {currentStep === 'error' && (
+            <div className="animate-fade-in">
+              <Card className="border-red-500/50">
+                <CardContent className="py-12">
+                  <div className="flex flex-col items-center text-center gap-4">
+                    <div className="p-4 rounded-full bg-red-500/10">
+                      <AlertTriangle className="h-16 w-16 text-red-500" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-semibold mb-2">Proof Generation Failed</h3>
+                      <p className="text-muted-foreground max-w-md">
+                        {errorMessage}
+                      </p>
+                    </div>
+                    <div className="flex gap-3 mt-4">
+                      <Button onClick={handleReset} variant="outline">
+                        Try Again
+                      </Button>
+                      <Button onClick={onBack}>
+                        Back to Vault
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       </main>
 
@@ -431,7 +462,7 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
         <ModalHeader>
           <ModalTitle>Enter Password</ModalTitle>
           <ModalDescription>
-            Enter your private key to decrypt the document
+            Enter your private key to decrypt the credential
           </ModalDescription>
         </ModalHeader>
         <div className="space-y-4">
@@ -476,6 +507,12 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
           </Button>
         </ModalFooter>
       </Modal>
+
+      {/* Wallet Connect Modal */}
+      <WalletConnectModal 
+        open={showWalletModal} 
+        onOpenChange={setShowWalletModal}
+      />
     </div>
   )
 }
