@@ -142,7 +142,7 @@ export function VaultPage({ privateKey, onLogout }: VaultPageProps) {
               privateKey={privateKey}
               onCredentialIssued={handleUploadSuccess}
             />
-            <GenerateZKCard />
+            <GenerateZKCard privateKey={privateKey} />
             
             {/* Access IndexedDB Card */}
             <Card 

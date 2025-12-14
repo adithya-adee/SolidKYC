@@ -88,10 +88,17 @@ export function IssueDOBCredentialCard({ privateKey, onCredentialIssued }: Issue
         setIsSuccess(false)
       }, 3000)
 
+
     } catch (error: any) {
       console.error('Credential issuance error:', error)
       
-      if (error.message?.includes('credential')) {
+      // Check if it's a duplicate credential error (409 Conflict)
+      if (error.message?.includes('already exists') || error.message?.includes('Credential already exists')) {
+        toast.error('Credential Already Exists', {
+          description: 'A credential has already been issued to this wallet. Use a different wallet or wait for the existing credential to expire.',
+          duration: 6000,
+        })
+      } else if (error.message?.includes('credential')) {
         toast.error('Backend Error', {
           description: 'Failed to issue credential. Make sure backend is running.',
         })

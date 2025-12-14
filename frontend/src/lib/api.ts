@@ -65,6 +65,62 @@ export async function issueCredential(
   }
 }
 
+export interface VerifyProofRequest {
+  proof: any;
+  public: string[];
+  holderPublicKey: string;
+}
+
+export interface VerifyProofResponse {
+  verified: boolean;
+  error?: string;
+  credential?: {
+    holder: string;
+    issuer: string;
+    credentialHash: string;
+    issuedAt: string;
+    expiresAt: string;
+    isRevoked: boolean;
+  };
+  issuer?: {
+    authority: string;
+    name: string;
+    isActive: boolean;
+    publicKeyX: string;
+    publicKeyY: string;
+  };
+  message?: string;
+}
+
+/**
+ * Verify a zero-knowledge proof
+ */
+export async function verifyProof(
+  proof: any,
+  publicSignals: string[],
+  holderPublicKey: string
+): Promise<VerifyProofResponse> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/verify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        proof,
+        public: publicSignals,
+        holderPublicKey,
+      } as VerifyProofRequest),
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error verifying proof:', error);
+    throw error;
+  }
+}
+
 /**
  * Health check
  */
