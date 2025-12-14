@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Shield, Key, Plus, FolderOpen, Fingerprint } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { PasswordModal } from '@/components/features/PasswordModal'
 import { ModeToggle } from '@/components/ThemeToggle'
+import { hasMasterPassword } from '@/lib/masterPassword'
 
 interface HomePageProps {
   onCreateVault: (password: string) => void
@@ -14,13 +15,33 @@ interface HomePageProps {
 export function HomePage({ onCreateVault, onAccessVault, onNavigateToGenerateProof }: HomePageProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showAccessModal, setShowAccessModal] = useState(false)
+  const [vaultExists, setVaultExists] = useState(false)
+
+  useEffect(() => {
+    // Check if master password exists
+    setVaultExists(hasMasterPassword())
+  }, [])
 
   const handleCreateVault = (password: string) => {
+    if (vaultExists) {
+      toast.error('Vault already exists!', {
+        description: 'Please use "Access Vault" to open your existing vault.',
+      })
+      setShowCreateModal(false)
+      return
+    }
     toast.success('Vault created successfully!')
     onCreateVault(password)
   }
 
   const handleAccessVault = (password:string) => {
+    if (!vaultExists) {
+      toast.error('No vault found!', {
+        description: 'Please create a vault first using "Create Vault".',
+      })
+      setShowAccessModal(false)
+      return
+    }
     onAccessVault(password)
   }
 

@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import { validateMasterPassword } from '@/lib/masterPassword'
 
 interface PasswordModalProps {
   open: boolean
@@ -26,20 +27,27 @@ export function PasswordModal({
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [isValidating, setIsValidating] = useState(false)
 
   useEffect(() => {
     if (!open) {
       setPassword('')
       setConfirmPassword('')
       setShowPassword(false)
+      setIsValidating(false)
     }
   }, [open])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!password) {
       toast.error('Please enter a password')
+      return
+    }
+
+    if (password.length < 8) {
+      toast.error('Password must be at least 8 characters')
       return
     }
 
@@ -48,9 +56,24 @@ export function PasswordModal({
       return
     }
 
-    if (password.length < 8) {
-      toast.error('Password must be at least 8 characters')
-      return
+    // For 'enter' mode, validate the password
+    if (mode === 'enter') {
+      setIsValidating(true)
+      try {
+        const isValid = await validateMasterPassword(password)
+        
+        if (!isValid) {
+          toast.error('Incorrect password. Please try again.')
+          setPassword('')
+          setIsValidating(false)
+          return
+        }
+      } catch (error) {
+        toast.error('Failed to validate password')
+        setIsValidating(false)
+        return
+      }
+      setIsValidating(false)
     }
 
     onSuccess(password)
@@ -112,11 +135,11 @@ export function PasswordModal({
           </div>
 
           <ModalFooter className="mt-6">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full" disabled={isValidating}>
               Cancel
             </Button>
-            <Button type="submit" className="w-full">
-              {mode === 'create' ? 'Create Vault' : 'Access Vault'}
+            <Button type="submit" className="w-full" disabled={isValidating}>
+              {isValidating ? 'Validating...' : mode === 'create' ? 'Create Vault' : 'Access Vault'}
             </Button>
           </ModalFooter>
         </form>
