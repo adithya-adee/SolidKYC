@@ -32,7 +32,7 @@ export function GenerateZKCard({ privateKey, onGenerate }: GenerateZKCardProps) 
   const [credentials, setCredentials] = useState<any[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedProof, setGeneratedProof] = useState<GeneratedProofData | null>(null)
-  
+
   const { connected, publicKey } = useWallet()
 
   const loadCredentials = async () => {
@@ -77,10 +77,14 @@ export function GenerateZKCard({ privateKey, onGenerate }: GenerateZKCardProps) 
     setIsGenerating(true)
 
     try {
+      // Check if there's a callback URL in the URL params
+      const urlParams = new URLSearchParams(window.location.search)
+      const callbackUrl = urlParams.get('callback')
+
       // Step 1: Decrypt credential
       toast.info('Decrypting credential...')
       const credentialData = await getEncryptedData(credentialId, privateKey)
-      
+
       // Step 2: Validate credential
       if (!validateCredentialData(credentialData)) {
         throw new Error('Invalid credential data. Missing required fields for proof generation.')
@@ -91,34 +95,73 @@ export function GenerateZKCard({ privateKey, onGenerate }: GenerateZKCardProps) 
       // Step 3: Generate ZK proof
       const { proof, publicSignals } = await generateProof(credentialData as CredentialData)
 
-      toast.info('Proof generated. Verifying on blockchain...')
+      toast.success('Proof generated successfully!')
 
-      // Step 4: Verify proof on backend
-      const verificationResult = await verifyProofAPI(
-        proof,
-        publicSignals,
-        publicKey.toString()
-      )
+      // Step 4: If callback URL exists, POST proof to it and redirect
+      if (callbackUrl) {
+        toast.info('Sending proof to DEX...')
 
-      if (verificationResult.verified) {
-        toast.success('Zero-knowledge proof verified successfully!', {
-          description: 'Your proof is valid and has been verified on-chain'
-        })
-        
-        setGeneratedProof({
+        try {
+          const response = await fetch(callbackUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              proof,
+              publicInputs: publicSignals,
+              holderPublicKey: publicKey.toString(),
+            }),
+          })
+
+          const result = await response.json()
+
+          if (result.success && result.redirectUrl) {
+            toast.success('Verification complete! Redirecting to DEX...')
+            // Redirect user back to DEX
+            setTimeout(() => {
+              window.location.href = result.redirectUrl
+            }, 1500)
+          } else {
+            throw new Error(result.message || 'Callback failed')
+          }
+        } catch (error: any) {
+          console.error('Failed to send proof to callback:', error)
+          toast.error('Failed to send proof', {
+            description: error.message
+          })
+          setIsGenerating(false)
+        }
+      } else {
+        // Step 4b: Normal flow - Verify proof locally via backend
+        toast.info('Proof generated. Verifying on blockchain...')
+
+        const verificationResult = await verifyProofAPI(
           proof,
           publicSignals,
-          verificationResult,
-          timestamp: Date.now(),
-          credentialId,
-          credentialName
-        })
-        
-        setIsGenerating(false)
-        setShowProofModal(true)
-        onGenerate?.()
-      } else {
-        throw new Error(verificationResult.error || 'Proof verification failed')
+          publicKey.toString()
+        )
+
+        if (verificationResult.verified) {
+          toast.success('Zero-knowledge proof verified successfully!', {
+            description: 'Your proof is valid and has been verified on-chain'
+          })
+
+          setGeneratedProof({
+            proof,
+            publicSignals,
+            verificationResult,
+            timestamp: Date.now(),
+            credentialId,
+            credentialName
+          })
+
+          setIsGenerating(false)
+          setShowProofModal(true)
+          onGenerate?.()
+        } else {
+          throw new Error(verificationResult.error || 'Proof verification failed')
+        }
       }
 
     } catch (error: any) {
@@ -155,13 +198,13 @@ export function GenerateZKCard({ privateKey, onGenerate }: GenerateZKCardProps) 
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    
+
     toast.success('Proof downloaded successfully!')
   }
 
   return (
     <>
-      <Card 
+      <Card
         className="hover:shadow-lg transition-all cursor-pointer bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-2"
         onClick={handleOpenModal}
       >
@@ -302,8 +345,8 @@ export function GenerateZKCard({ privateKey, onGenerate }: GenerateZKCardProps) 
       </Modal>
 
       {/* Wallet Connect Modal */}
-      <WalletConnectModal 
-        open={showWalletModal} 
+      <WalletConnectModal
+        open={showWalletModal}
         onOpenChange={setShowWalletModal}
       />
     </>
