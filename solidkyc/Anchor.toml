@@ -8,6 +8,9 @@ skip-lint = false
 [programs.localnet]
 solidkyc = "25sFtHdxx56aoPKM7sr8nq5P6QZnB1BeLqXq2S8fng8c"
 
+[programs.devnet]
+solidkyc = "25sFtHdxx56aoPKM7sr8nq5P6QZnB1BeLqXq2S8fng8c"
+
 [registry]
 url = "https://api.apr.dev"
 
