@@ -13,8 +13,18 @@ interface VaultPageProps {
   onLogout: () => void
 }
 
+interface Document {
+  id: number
+  type: string
+  timestamp: number
+  metadata?: {
+    name?: string
+    description?: string
+  }
+}
+
 export function VaultPage({ privateKey, onLogout }: VaultPageProps) {
-  const [documents, setDocuments] = useState<any[]>([])
+  const [documents, setDocuments] = useState<Document[]>([])
   const [showDocuments, setShowDocuments] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedFilter, setSelectedFilter] = useState<string>('all')
@@ -27,7 +37,7 @@ export function VaultPage({ privateKey, onLogout }: VaultPageProps) {
     setIsLoading(true)
     try {
       const creds = await getAllCredentials()
-      setDocuments(creds)
+      setDocuments(creds as unknown as Document[])
     } catch (error) {
       console.error('Failed to load documents:', error)
       toast.error('Failed to load documents')
@@ -38,7 +48,7 @@ export function VaultPage({ privateKey, onLogout }: VaultPageProps) {
 
   const handleViewDocument = async (id: number) => {
     try {
-      const data = await getEncryptedData(id, privateKey)
+      const data: unknown = await getEncryptedData(id, privateKey) // Explicitly type as unknown
       toast.success('Document decrypted successfully!')
       console.log('Decrypted data:', data)
       

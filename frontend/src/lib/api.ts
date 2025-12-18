@@ -96,7 +96,7 @@ export interface VerifyProofResponse {
  * Verify a zero-knowledge proof
  */
 export async function verifyProof(
-  proof: any,
+  proof: unknown,
   publicSignals: string[],
   holderPublicKey: string
 ): Promise<VerifyProofResponse> {
