@@ -34,6 +34,8 @@ export async function POST(request: NextRequest) {
     })
 
     // Verify the proof with the backend
+    console.log(`🔗 Attempting to verify with backend: ${BACKEND_URL}/verify`)
+    
     const verifyResponse = await fetch(`${BACKEND_URL}/verify`, {
       method: "POST",
       headers: {
@@ -45,6 +47,21 @@ export async function POST(request: NextRequest) {
         holderPublicKey,
       }),
     })
+
+    console.log(`📡 Backend response status: ${verifyResponse.status}`)
+
+    // Check if response is actually JSON
+    const contentType = verifyResponse.headers.get("content-type")
+    if (!contentType || !contentType.includes("application/json")) {
+      const responseText = await verifyResponse.text()
+      console.error("❌ Backend returned non-JSON response:", responseText.substring(0, 200))
+      
+      throw new Error(
+        `Backend returned ${contentType || 'unknown content type'} instead of JSON. ` +
+        `This usually means the backend is not accessible at ${BACKEND_URL}. ` +
+        `Status: ${verifyResponse.status}. Response preview: ${responseText.substring(0, 100)}`
+      )
+    }
 
     const verificationResult = await verifyResponse.json()
 
