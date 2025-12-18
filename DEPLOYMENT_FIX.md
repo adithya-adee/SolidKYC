@@ -20,6 +20,31 @@ The error `Unexpected token '<', "<!DOCTYPE "...` means the backend is returning
 
 You need to **deploy your backend** and configure Vercel environment variables to point to it.
 
+### ⚠️ Common Mistakes
+
+1. **Missing `https://` protocol:**
+   - ❌ Wrong: `solidkyc-production.up.railway.app`
+   - ✅ Correct: `https://solidkyc-production.up.railway.app`
+
+2. **Including `/verify` in the base URL:**
+   - ❌ Wrong: `NEXT_PUBLIC_BACKEND_URL=https://solidkyc-production.up.railway.app/verify`
+   - ✅ Correct: `NEXT_PUBLIC_BACKEND_URL=https://solidkyc-production.up.railway.app`
+
+3. **Not redeploying after changing env vars:**
+   - Vercel requires a redeploy for env var changes to take effect
+   - Push a commit or manually trigger redeploy in Vercel dashboard
+
+### 🔍 Debug Your Configuration
+
+Visit this URL after deploying:
+```
+https://solidkyc-simulation-dex.vercel.app/api/config
+```
+
+This will show you exactly what environment variables are being used. Make sure:
+- `NEXT_PUBLIC_BACKEND_URL` starts with `https://`
+- `NEXT_PUBLIC_BACKEND_URL` does NOT end with `/verify`
+
 ### Option 1: Deploy Backend to Railway (Recommended)
 
 1. **Deploy the backend folder to Railway:**
