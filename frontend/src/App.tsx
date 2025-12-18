@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { Toaster, toast } from 'sonner'
-import { HomePage } from '@/pages/HomePage'
-import { VaultPage } from '@/pages/VaultPage'
-import { GenerateProofPage } from '@/pages/GenerateProofPage'
 import { initDB } from '@/lib/encryptedDB'
 import { hasMasterPassword, createMasterPassword } from '@/lib/masterPassword'
 import { createSession, clearSession, hasValidSession, restorePasswordFromSession } from '@/lib/sessionManager'
 import './index.css'
+
+const HomePage = lazy(() => import('@/pages/HomePage').then(m => ({ default: m.HomePage })))
+const VaultPage = lazy(() => import('@/pages/VaultPage').then(m => ({ default: m.VaultPage })))
+const GenerateProofPage = lazy(() => import('@/pages/GenerateProofPage').then(m => ({ default: m.GenerateProofPage })))
 
 type AppView = 'home' | 'vault' | 'generateProof'
 
@@ -119,27 +120,29 @@ function App() {
   return (
     <>
       <div className="">
-        {currentView === 'home' && (
-          <HomePage 
-            onCreateVault={handleCreateVault}
-            onAccessVault={handleAccessVault}
-            onNavigateToGenerateProof={handleNavigateToGenerateProof}
-          />
-        )}
-        
-        {currentView === 'vault' && privateKey && (
-          <VaultPage 
-            privateKey={privateKey} 
-            onLogout={handleLogout}
-          />
-        )}
-        
-        {currentView === 'generateProof' && (
-          <GenerateProofPage 
-            privateKey={privateKey || undefined}
-            onBack={privateKey ? handleBackToVault : handleBackToHome}
-          />
-        )}
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+          {currentView === 'home' && (
+            <HomePage 
+              onCreateVault={handleCreateVault}
+              onAccessVault={handleAccessVault}
+              onNavigateToGenerateProof={handleNavigateToGenerateProof}
+            />
+          )}
+          
+          {currentView === 'vault' && privateKey && (
+            <VaultPage 
+              privateKey={privateKey} 
+              onLogout={handleLogout}
+            />
+          )}
+          
+          {currentView === 'generateProof' && (
+            <GenerateProofPage 
+              privateKey={privateKey || undefined}
+              onBack={privateKey ? handleBackToVault : handleBackToHome}
+            />
+          )}
+        </Suspense>
       </div>
       <Toaster 
         position="top-right" 
