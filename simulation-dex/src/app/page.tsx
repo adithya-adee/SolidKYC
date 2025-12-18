@@ -7,30 +7,39 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner"
 
 const SOLIDKYC_URL = "http://localhost:5173"
-const BACKEND_URL = "http://localhost:3000"
+
 const DEX_CALLBACK_URL = "http://localhost:3001/verify-callback"
 
 type VerificationState = "idle" | "verifying" | "success" | "failed"
 
-export default function SimulationDEX() {
-  const [verificationState, setVerificationState] = useState<VerificationState>("idle")
-  const [verificationMessage, setVerificationMessage] = useState("")
+const getInitialVerificationStateAndMessage = (): { state: VerificationState; message: string } => {
+  if (typeof window === 'undefined') {
+    return { state: "idle", message: "" };
+  }
+  const params = new URLSearchParams(window.location.search);
+  const verified = params.get("verified");
 
+  if (verified === "true") {
+    return { state: "success", message: "Age verification successful! Welcome to SimDEX." };
+  } else if (verified === "false") {
+    return { state: "failed", message: "Age verification failed. Please try again." };
+  }
+  return { state: "idle", message: "" };
+};
+
+export default function SimulationDEX() {
+  const { state: initialVerificationState, message: initialVerificationMessage } = getInitialVerificationStateAndMessage();
+  const [verificationState, setVerificationState] = useState<VerificationState>(initialVerificationState);
+  const verificationMessage = initialVerificationMessage;
+
+  // This effect will run only once after the initial render if the state is not "idle".
   useEffect(() => {
-    // Check if we're coming back from callback
-    const params = new URLSearchParams(window.location.search)
-    const verified = params.get("verified")
-    
-    if (verified === "true") {
-      setVerificationState("success")
-      setVerificationMessage("Age verification successful! Welcome to SimDEX.")
-      toast.success("Verification complete!")
-    } else if (verified === "false") {
-      setVerificationState("failed")
-      setVerificationMessage("Age verification failed. Please try again.")
-      toast.error("Verification failed")
+    if (initialVerificationState === "success") {
+      toast.success("Verification complete!");
+    } else if (initialVerificationState === "failed") {
+      toast.error("Verification failed");
     }
-  }, [])
+  }, [initialVerificationState]); // Dependency array includes initialVerificationState
 
   const handleVerifyAge = () => {
     // Redirect to SolidKYC with callback URL
@@ -77,7 +86,7 @@ export default function SimulationDEX() {
                   <ul className="space-y-2 text-slate-300">
                     <li className="flex items-start gap-2">
                       <span className="text-purple-400 mt-1">1.</span>
-                      <span>Click "Verify via SolidKYC" below</span>
+                      <span>Click &quot;Verify via SolidKYC&quot; below</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-purple-400 mt-1">2.</span>
@@ -85,7 +94,7 @@ export default function SimulationDEX() {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-purple-400 mt-1">3.</span>
-                      <span>We'll verify your proof without accessing your personal data</span>
+                      <span>We&apos;ll verify your proof without accessing your personal data</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-purple-400 mt-1">4.</span>
@@ -134,7 +143,7 @@ export default function SimulationDEX() {
                     <strong className="text-green-400">This is how zero-knowledge proofs work!</strong>
                   </p>
                   <p className="text-xs text-slate-400">
-                    You just proved you're 18+ without sharing your date of birth, name, or any other personal information. 
+                    You just proved you&apos;re 18+ without sharing your date of birth, name, or any other personal information. 
                     The DEX verified your proof cryptographically without ever seeing your actual data.
                   </p>
                 </div>

@@ -10,7 +10,7 @@ const corsHeaders = {
 }
 
 // Handle OPTIONS preflight request
-export async function OPTIONS(request: NextRequest) {
+export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders })
 }
 
@@ -70,13 +70,13 @@ export async function POST(request: NextRequest) {
         { headers: corsHeaders }
       )
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error("❌ Error in verify-callback:", error)
     return NextResponse.json(
       {
         success: false,
         redirectUrl: "http://localhost:3001?verified=false",
-        error: error.message || "Internal server error",
+        error: error instanceof Error ? error.message : "Internal server error",
       },
       { status: 500, headers: corsHeaders }
     )
