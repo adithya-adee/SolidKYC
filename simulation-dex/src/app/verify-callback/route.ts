@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const BACKEND_URL = "http://localhost:3000"
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000"
+const DEX_BASE_URL = process.env.NEXT_PUBLIC_DEX_CALLBACK_URL?.replace('/verify-callback', '') || "http://localhost:3001"
 
 // CORS headers
 const corsHeaders = {
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: true,
-          redirectUrl: "http://localhost:3001?verified=true",
+          redirectUrl: `${DEX_BASE_URL}?verified=true`,
           message: "Age verification successful!",
         },
         { headers: corsHeaders }
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          redirectUrl: "http://localhost:3001?verified=false",
+          redirectUrl: `${DEX_BASE_URL}?verified=false`,
           message: verificationResult.error || "Verification failed",
         },
         { headers: corsHeaders }
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        redirectUrl: "http://localhost:3001?verified=false",
+        redirectUrl: `${DEX_BASE_URL}?verified=false`,
         error: error instanceof Error ? error.message : "Internal server error",
       },
       { status: 500, headers: corsHeaders }

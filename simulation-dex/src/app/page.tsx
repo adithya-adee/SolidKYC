@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 
-const SOLIDKYC_URL = "http://localhost:5173"
+const SOLIDKYC_URL = process.env.NEXT_PUBLIC_SOLIDKYC_URL || "http://localhost:5173"
 
-const DEX_CALLBACK_URL = "http://localhost:3001/verify-callback"
+const DEX_CALLBACK_URL = process.env.NEXT_PUBLIC_DEX_CALLBACK_URL || "http://localhost:3001/verify-callback"
 
 type VerificationState = "idle" | "verifying" | "success" | "failed"
 
