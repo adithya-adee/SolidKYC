@@ -7,9 +7,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal, ModalHeader, ModalTitle, ModalDescription, ModalFooter } from '@/components/ui/modal'
 import { toast } from 'sonner'
-import { getAllCredentials, getEncryptedData } from '@/lib/encryptedDB'
+import { getAllCredentials, getEncryptedData, type StoredCredential } from '@/lib/encryptedDB'
 import { validateCredentialData, generateProof, type CredentialData } from '@/lib/zkProof'
-import { verifyProof as verifyProofAPI } from '@/lib/api'
+import { verifyProof as verifyProofAPI, type VerifyProofResponse } from '@/lib/api'
 import { WalletConnectModal } from '@/components/features/WalletConnectModal'
 
 interface GenerateProofPageProps {
@@ -26,9 +26,9 @@ interface SelectedCredential {
 }
 
 interface GeneratedProofData {
-  proof: any
+  proof: unknown
   publicSignals: string[]
-  verificationResult?: any
+  verificationResult?: VerifyProofResponse
   timestamp: number
   credentialId: number
   credentialName: string
@@ -36,7 +36,7 @@ interface GeneratedProofData {
 
 export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps) {
   const [currentStep, setCurrentStep] = useState<ProofStep>('select')
-  const [documents, setDocuments] = useState<any[]>([])
+  const [documents, setDocuments] = useState<Omit<StoredCredential, 'encryptedData'>[]>([])
   const [selectedDoc, setSelectedDoc] = useState<SelectedCredential | null>(null)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [password, setPassword] = useState('')
@@ -68,7 +68,7 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
     }
   }
 
-  const handleSelectDocument = (doc: any) => {
+  const handleSelectDocument = (doc: Omit<StoredCredential, 'encryptedData'>) => {
     // Check wallet connection first
     if (!connected || !publicKey) {
       setShowWalletModal(true)
@@ -79,13 +79,13 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
     }
 
     setSelectedDoc({
-      id: doc.id,
+      id: doc.id!,
       name: doc.metadata?.name || `Document ${doc.id}`,
       type: doc.type
     })
     
     if (privateKey) {
-      handleGenerateProof(doc.id, privateKey)
+      handleGenerateProof(doc.id!, privateKey)
     } else {
       setShowPasswordModal(true)
     }
@@ -168,9 +168,9 @@ export function GenerateProofPage({ privateKey, onBack }: GenerateProofPageProps
         throw new Error(verificationResult.error || 'Proof verification failed')
       }
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to generate/verify proof:', error)
-      const message = error.message || 'Failed to generate proof. Please check your credential data.'
+      const message = error instanceof Error ? error.message : 'Failed to generate proof. Please check your credential data.'
       setErrorMessage(message)
       setCurrentStep('error')
       toast.error('Proof Generation Failed', {

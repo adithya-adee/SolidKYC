@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Shield, Key, Plus, FolderOpen, Fingerprint } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
@@ -15,12 +15,7 @@ interface HomePageProps {
 export function HomePage({ onCreateVault, onAccessVault, onNavigateToGenerateProof }: HomePageProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showAccessModal, setShowAccessModal] = useState(false)
-  const [vaultExists, setVaultExists] = useState(false)
-
-  useEffect(() => {
-    // Check if master password exists
-    setVaultExists(hasMasterPassword())
-  }, [])
+  const [vaultExists] = useState(() => hasMasterPassword())
 
   const handleCreateVault = (password: string) => {
     if (vaultExists) {

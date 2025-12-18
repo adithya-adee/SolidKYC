@@ -9,7 +9,7 @@ export interface Credential {
   subject: string;
   issuedAt: number;
   expiresAt?: number;
-  claims: Record<string, any>;
+  claims: Record<string, unknown>;
   proof: {
     type: string;
     signature: string;
