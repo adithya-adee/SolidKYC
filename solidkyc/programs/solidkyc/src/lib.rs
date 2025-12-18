@@ -135,7 +135,7 @@ pub struct InitializeIssuer<'info> {
 #[instruction(issuer_name: String)]
 pub struct IssueCredential<'info> {
     #[account(
-        init,
+        init_if_needed,
         payer = issuer_authority,
         space = UserCredential::LEN,
         seeds = [b"credential", holder.key().as_ref(), issuer_account.key().as_ref()],

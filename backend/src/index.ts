@@ -232,32 +232,27 @@ app.post("/issue_credentials", async (req: Request, res: Response) => {
     console.log("Issuer PDA:", issuerPDA.toString());
     console.log("Credential PDA:", credentialPDA.toString());
 
-    // Check if credential already exists for this holder
+    // Check if credential already exists for this holder (for logging purposes)
+    // NOTE: For MVP, we allow re-issuing credentials to enable testing with different dates of birth
     try {
       const existingCredential = await solanaConfig.program.account.userCredential.fetch(
         credentialPDA
       );
       
       if (existingCredential) {
-        console.log("Credential already exists for this holder");
-        return res.status(409).json({
-          error: "Credential already exists for this wallet",
-          message: "A credential has already been issued to this wallet address. Please use a different wallet or revoke the existing credential first.",
-          credential_pda: credentialPDA.toString(),
-          existing_credential: {
-            issued_at: existingCredential.issuedAt.toString(),
-            expires_at: existingCredential.expiresAt.toString(),
-            is_revoked: existingCredential.isRevoked,
-          }
-        });
+        console.log("⚠️  Existing credential found - will be overwritten");
+        console.log("   Previous issued_at:", existingCredential.issuedAt.toString());
+        console.log("   Previous expires_at:", existingCredential.expiresAt.toString());
+        console.log("   Previous is_revoked:", existingCredential.isRevoked);
+        console.log("   Proceeding with credential re-issuance for testing purposes...");
       }
     } catch (fetchError: any) {
-      // If fetch fails with "Account does not exist", that's good - we can proceed
+      // If fetch fails with "Account does not exist", that's expected for first-time issuance
       if (!fetchError.message?.includes("Account does not exist")) {
         console.error("Error checking existing credential:", fetchError);
         // Continue anyway - let the transaction fail if there's a real issue
       }
-      console.log("No existing credential found - proceeding with issuance");
+      console.log("✓ No existing credential found - proceeding with first-time issuance");
     }
 
     // Call Solana smart contract - issueCredential instruction
