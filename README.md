@@ -22,6 +22,14 @@ SolidKYC is a decentralized identity verification system that enables users to p
 
 ---
 
+## Warning: May contain visual awesomeness
+
+
+https://github.com/user-attachments/assets/c73bd17e-48b6-41db-8ad7-068d098e6f72
+
+
+---
+
 ## 🏗️ Architecture
 
 ```
