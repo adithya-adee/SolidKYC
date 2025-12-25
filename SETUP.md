@@ -47,7 +47,7 @@ Make sure you have the following installed before starting:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/SolidKYC.git
+git clone https://github.com/adithya-adee/SolidKYC.git
 cd SolidKYC
 ```
 
@@ -452,8 +452,8 @@ Once you have everything running locally:
 
 ## Getting Help
 
-- **Issues:** [GitHub Issues](https://github.com/yourusername/SolidKYC/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/yourusername/SolidKYC/discussions)
+- **Issues:** [GitHub Issues](https://github.com/adithya-adee/SolidKYC/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/adithya-adee/SolidKYC/discussions)
 - **Documentation:** Full docs in [README.md](./README.md)
 
 ---

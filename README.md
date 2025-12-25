@@ -62,7 +62,7 @@ Access granted — no PII stored by verifier
 ### High-Level Design
 
 For detailed architecture and flow diagrams, see:
-📊 **[Architecture Diagram (Excalidraw)](https://excalidraw.com/#json=your-diagram-id-here)** *(coming soon)*
+📊 **[Raw Architecture Diagram](./docs/MVP%20Design.excalidraw)** — Excalidraw source file
 
 ### Components
 
@@ -189,14 +189,13 @@ See **[SETUP.md](./SETUP.md)** for complete installation and local development i
 **Quick start:**
 ```bash
 # Clone and install
-git clone https://github.com/yourusername/SolidKYC.git
+git clone https://github.com/adithya-adee/SolidKYC.git
 cd SolidKYC
 
 # See SETUP.md for detailed steps
 # You'll need: Node.js 18+, Rust, Solana CLI, Anchor CLI
 ```
 
-**Live Demo:** [Coming Soon — Devnet deployment]
 
 ---
 
@@ -204,7 +203,7 @@ cd SolidKYC
 
 - **[SETUP.md](./SETUP.md)** — Installation, local development, environment setup
 - **[Backend API Docs](./backend/README.md)** — Endpoint documentation
-- **[Raw Architecture Diagram](./docs//MVP%20Design.excalidraw)** Architecture Diagram Using Excalidraw
+- **[Raw Architecture Diagram](./docs/MVP%20Design.excalidraw)** — Architecture diagram using Excalidraw
 - **[Smart Contract Source](./solidkyc/programs/solidkyc/src/lib.rs)** — Anchor program
 - **[ZK Circuit](./circuits/age_verify.circom)** — Circom age verification circuit
 
